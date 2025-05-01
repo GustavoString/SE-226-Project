@@ -50,7 +50,7 @@ def get_scene_description(dialogue):
             {"role": "user", "content": prompt}
         ],
         temperature=0.5,
-        max_tokens=600  # ~1000 characters max (including the addition to the prompt in the get_image method)
+        max_tokens=510  # ~1000 characters max (including the addition to the prompt in the get_image method)
     )
     return response.choices[0].message.content.strip()
 
@@ -65,8 +65,8 @@ def get_image(location, style, dialogue):
 
     scene_description = get_scene_description(dialogue)
 
-    prompt = f"{scene_description} The scene is set in {location}, in {style} style. The image should be a depiction of the description provided at the start set at the requested location, depicted in the requested style."
-
+    prompt = f"{scene_description} The scene is set in {location}, depicted in a {style} style. The image should be a depiction of the description provided."
+    prompt = prompt[:1000]
     try:
         response = client.images.generate(
             prompt=prompt,

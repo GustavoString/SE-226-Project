@@ -1,9 +1,16 @@
 import tkinter as tk
+import threading
 from tkinter import ttk
 from tkinter import font as tkFont
 from tkinter import scrolledtext, messagebox # Use scrolledtext for easier text areas
 import webbrowser
 from fetch_movies import MovieManager
+from ai_api import get_dialogue, get_image
+from PIL import Image, ImageTk
+import io
+import requests
+
+
 
 # --- Constants ---
 DARK_BG = "#2e2e2e"
@@ -48,6 +55,7 @@ class IMDbApp:
         self.create_right_frame()
 
         # --- Store the movies data ---
+        self.last_generated_dialogue = {}
         self.top_movies = []
 
         # --- Fetch IMDb Data ---
@@ -302,10 +310,8 @@ class IMDbApp:
         text_widget.config(state=tk.DISABLED)
 
     def on_movie_select(self, event=None):
-        """Handles the selection of a movie in the listbox."""
         selected_indices = self.movie_listbox.curselection()
         if not selected_indices:
-            # No selection or selection cleared
             self.clear_details()
             self.generate_dialogue_button.config(state=tk.DISABLED)
             self.generate_image_button.config(state=tk.DISABLED)
@@ -316,60 +322,52 @@ class IMDbApp:
             messagebox.showerror("Selection Error", "Invalid movie selection")
             return
 
-        # Get the correct movie title from the stored data
         rank, movie_title = self.top_movies[selected_index]
 
-        # Show loading message
+        # Show loading placeholders in GUI
         self.set_text_widget_content(self.description_text, "Loading movie details...")
         self.set_text_widget_content(self.storyline_text, "Loading storyline...")
+        self.generate_dialogue_button.config(state=tk.DISABLED)
+        self.generate_image_button.config(state=tk.DISABLED)
         self.root.update()
 
-        try:
-            # Fetch detailed movie information using the MovieManager
-            movie_data = self.movie_manager.fetch_movie_details_by_rank(rank)
+        def worker():
+            try:
+                movie_data = self.movie_manager.fetch_movie_details_by_rank(rank)
 
-            # Update Details Tab
-            self.title_label.config(text=f"{movie_data.get('title', 'N/A')} ({movie_data.get('year', 'N/A')})")
+                title = f"{movie_data.get('title', 'N/A')} ({movie_data.get('year', 'N/A')})"
+                imdb_id = movie_data.get('imdb_id', '')
+                url = f"https://www.imdb.com/title/{imdb_id}/" if imdb_id else f"https://www.imdb.com/find?q={movie_title.replace(' ', '+')}"
+                description = (
+                    f"Rating: {movie_data.get('rating', 'N/A')}\n"
+                    f"Synopsis: {movie_data.get('storyline', 'No synopsis available.').split('.')[0]}."
+                )
+                storyline = movie_data.get('storyline', 'No storyline available.')
 
-            # Construct and show IMDb URL
-            imdb_id = movie_data.get('imdb_id', '')
-            if imdb_id:
-                url = f"https://www.imdb.com/title/{imdb_id}/"
-            else:
-                url = f"https://www.imdb.com/find?q={movie_title.replace(' ', '+')}"
+                def update_gui():
+                    self.title_label.config(text=title)
+                    self.url_label.config(text=url)
+                    self.url_label.bind("<Button-1>", lambda e, u=url: webbrowser.open(u))
+                    self.set_text_widget_content(self.description_text, description)
+                    self.set_text_widget_content(self.storyline_text, storyline)
+                    self.set_text_widget_content(self.dialogue_output_text, "")
+                    self.image_label.config(image="", text="Image will appear here")
+                    self.generate_dialogue_button.config(state=tk.NORMAL)
+                    self.generate_image_button.config(state=tk.NORMAL)
+                    self.notebook.select(0)
 
-            self.url_label.config(text=url)
-            self.url_label.bind("<Button-1>", lambda e, u=url: webbrowser.open(u))
+                self.root.after(0, update_gui)
 
-            # Format movie metadata into a readable description
-            description = (
-                f"Rating: {movie_data.get('rating', 'N/A')}\n"
-                f"Synopsis: {movie_data.get('storyline', 'No synopsis available.').split('.')[0]}."
-            )
+            except Exception as e:
+                def handle_error():
+                    self.set_text_widget_content(self.description_text, f"Failed to fetch movie details: {str(e)}")
+                    self.set_text_widget_content(self.storyline_text, "")
+                    messagebox.showerror("Fetch Error", f"Failed to fetch movie details: {str(e)}")
 
-            # Put full storyline in the storyline section
-            storyline = movie_data.get('storyline', 'No storyline available.')
+                self.root.after(0, handle_error)
 
-            self.set_text_widget_content(self.description_text, description)
-            self.set_text_widget_content(self.storyline_text, storyline)
+        threading.Thread(target=worker, daemon=True).start()
 
-            # Clear AI outputs and enable buttons
-            self.set_text_widget_content(self.dialogue_output_text, "")
-            self.image_label.config(image="", text="Image will appear here")
-
-            self.generate_dialogue_button.config(state=tk.NORMAL)
-            self.generate_image_button.config(state=tk.NORMAL)
-
-            # Switch back to the details tab on new selection
-            self.notebook.select(0)
-
-        except Exception as e:
-            # Handle error if data fetch fails
-            error_msg = f"Failed to fetch movie details: {str(e)}"
-            self.set_text_widget_content(self.description_text, error_msg)
-            self.set_text_widget_content(self.storyline_text, "")
-            messagebox.showerror("Fetch Error", error_msg)
-            print(f"Error fetching movie details: {e}")
     def clear_details(self):
         """Clears the details and AI output areas."""
         self.title_label.config(text="")
@@ -381,95 +379,91 @@ class IMDbApp:
         # self.image_label.image = None # Clear image reference if using PIL
 
     def generate_dialogue(self):
-        """Placeholder for dialogue generation logic."""
         selected_indices = self.movie_listbox.curselection()
         if not selected_indices:
-            print("Error: No movie selected.")
             self.set_text_widget_content(self.dialogue_output_text, "Error: Please select a movie first.")
             return
 
-        movie_title = self.movie_listbox.get(selected_indices[0])
+        rank, movie_title = self.top_movies[selected_indices[0]]
+        movie_data = self.movie_manager.fetch_movie_details_by_rank(rank)
+        storyline = movie_data.get('storyline', '')
         num_chars = self.char_count_var.get()
         max_words = self.max_words_var.get()
 
-        print(f"--- Requesting Dialogue ---")
-        print(f"Movie: {movie_title}")
-        print(f"Characters: {num_chars}")
-        print(f"Max Words: {max_words}")
-
-        # --- Placeholder: Show parameters ---
-        # In a real app, call the LLM API here with the parameters
-        placeholder_dialogue = (
-            f"--- Placeholder Dialogue ---\n"
-            f"Movie: {movie_title}\n"
-            f"Requested Characters: {num_chars}\n"
-            f"Requested Max Words: {max_words}\n\n"
-            f"(Imagine a creative dialogue generated by an AI based on the movie's themes and characters, "
-            f"respecting the constraints given. This text area would be populated by the response from the "
-            f"Gemini API or another LLM.)"
-        )
-        self.set_text_widget_content(self.dialogue_output_text, placeholder_dialogue)
-
-        # Switch to the dialogue tab
+        self.set_text_widget_content(self.dialogue_output_text, "Generating dialogue, please wait...")
         self.notebook.select(1)
-        print("Placeholder dialogue displayed.")
 
+        def worker():
+            try:
+                dialogue = get_dialogue(storyline, num_chars, max_words)
+                self.last_generated_dialogue[movie_title] = dialogue
+                self.root.after(0, lambda: self.set_text_widget_content(self.dialogue_output_text, dialogue))
+            except Exception as e:
+                self.root.after(0, lambda: messagebox.showerror("Dialogue Error",
+                                                                f"Failed to generate dialogue: {str(e)}"))
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def generate_image(self):
-        """Placeholder for image generation logic."""
         selected_indices = self.movie_listbox.curselection()
         if not selected_indices:
-            print("Error: No movie selected.")
             self.image_label.config(text="Error: Please select a movie first.")
             return
 
-        movie_title = self.movie_listbox.get(selected_indices[0])
-        location = self.location_var.get().strip()
-        style = self.style_var.get()
+        rank, movie_title = self.top_movies[selected_indices[0]]
+        location = self.location_var.get().strip() or "Unknown location"
+        style = self.style_var.get() or "Futuristic"
 
-        # Get scene description (e.g., from dialogue or maybe storyline?)
-        # For this example, let's take the first few lines of the generated dialogue if available
-        self.dialogue_output_text.config(state=tk.NORMAL)
-        dialogue_content = self.dialogue_output_text.get("1.0", "5.0").strip() # Get first few lines
-        self.dialogue_output_text.config(state=tk.DISABLED)
-
-        if not dialogue_content or "Placeholder Dialogue" in dialogue_content:
-             # Fallback if dialogue not generated or is placeholder
-             self.storyline_text.config(state=tk.NORMAL)
-             scene_description = self.storyline_text.get("1.0", "3.0").strip() # Get start of storyline
-             self.storyline_text.config(state=tk.DISABLED)
-             if not scene_description:
-                 scene_description = f"A scene inspired by the movie {movie_title}"
-        else:
-            scene_description = dialogue_content
-
-
-        if not location:
-            location = "A relevant setting" # Default if empty
-
-        print(f"--- Requesting Image ---")
-        print(f"Movie: {movie_title}")
-        print(f"Location: {location}")
-        print(f"Style: {style}")
-        print(f"Scene Description: {scene_description}")
-
-        # --- Placeholder: Show parameters ---
-        # In a real app, call the Image Generation API here
-        # Then load the resulting image using Pillow and display it in self.image_label
-        placeholder_image_text = (
-            f"--- Placeholder Image Generation ---\n"
-            f"Style: {style}\n"
-            f"Location: {location}\n"
-            f"Scene based on: '{scene_description[:50]}...'\n\n" # Show snippet
-            f"(Imagine an image generated in the '{style}' style, depicting the scene "
-            f"in the specified location. This label would display the actual image.)"
-        )
-        self.image_label.config(image="", text=placeholder_image_text, wraplength=self.image_label.winfo_width()-20) # Wrap text
-        # self.image_label.image = None # Clear potential old image reference
-
-        # Switch to the image tab
+        self.image_label.config(image="", text="Generating image, please wait...")
         self.notebook.select(2)
-        print("Placeholder image request displayed.")
+
+        def worker():
+            if movie_title in self.last_generated_dialogue:
+                dialogue = self.last_generated_dialogue[movie_title]
+            else:
+                try:
+                    movie_data = self.movie_manager.fetch_movie_details_by_rank(rank)
+                    storyline = movie_data.get('storyline', 'No storyline available.')
+                    num_chars = self.char_count_var.get()
+                    max_words = self.max_words_var.get()
+                    dialogue = get_dialogue(storyline, num_chars, max_words)
+                    self.last_generated_dialogue[movie_title] = dialogue
+                    self.root.after(0, lambda: self.set_text_widget_content(self.dialogue_output_text, dialogue))
+                except Exception as e:
+                    self.root.after(0, lambda: messagebox.showerror("Dialogue Error",
+                                                                    f"Failed to generate dialogue for image: {str(e)}"))
+                    return
+
+            try:
+                image_url = get_image(location, style, dialogue)
+                if not image_url:
+                    self.root.after(0, lambda: self.image_label.config(text="Image generation failed."))
+                    return
+
+                try:
+                    response = requests.get(image_url)
+                    response.raise_for_status()
+                    image_data = response.content
+
+                    pil_image = Image.open(io.BytesIO(image_data))
+                    pil_image = pil_image.resize((512, 512))  # Resize if needed
+                    tk_image = ImageTk.PhotoImage(pil_image)
+
+                    def update_gui_with_image():
+                        self.image_label.config(image=tk_image, text="")
+                        self.image_label.image = tk_image  # Keep reference
+
+                    self.root.after(0, update_gui_with_image)
+
+                except Exception as e:
+                    self.root.after(0, lambda: self.image_label.config(text=f"Failed to load image: {e}"))
+
+
+            except Exception as e:
+                self.root.after(0, lambda: messagebox.showerror("Image Error", f"Failed to generate image: {str(e)}"))
+
+        threading.Thread(target=worker, daemon=True).start()
+
 
 # --- Main Execution ---
 if __name__ == "__main__":
