@@ -446,12 +446,12 @@ class IMDbApp:
                     image_data = response.content
 
                     pil_image = Image.open(io.BytesIO(image_data))
-                    pil_image = pil_image.resize((512, 512))  # Resize if needed
+                    pil_image = pil_image.resize((512, 512))
                     tk_image = ImageTk.PhotoImage(pil_image)
 
                     def update_gui_with_image():
                         self.image_label.config(image=tk_image, text="")
-                        self.image_label.image = tk_image  # Keep reference
+                        self.image_label.image = tk_image
 
                     self.root.after(0, update_gui_with_image)
 
