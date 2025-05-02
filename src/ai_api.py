@@ -1,7 +1,11 @@
+import os
 from openai import OpenAI
+from dotenv import load_dotenv
 
+load_dotenv()
 
-client = OpenAI(api_key="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")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
 
 def get_dialogue(storyline, num_characters, max_words):
     """
