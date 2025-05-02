@@ -323,6 +323,29 @@ class MovieManager:
             print(f"Error loading movie data: {e}")
             return {}
 
+    def fetch_movie_details(self, imdb_id):
+        """Fetch detailed information for a specific movie by IMDb ID."""
+        try:
+            url = f"https://www.imdb.com/title/{imdb_id}/"
+            response = requests.get(url, headers=self.headers)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, 'html.parser')
+
+            # Extract existing details...
+
+            # Extract poster URL
+            poster_elem = soup.select_one('div[data-testid="hero-media__poster"] img')
+            poster_url = poster_elem['src'] if poster_elem and 'src' in poster_elem.attrs else None
+
+            return {
+                # Existing details...
+                'poster_url': poster_url  # Add the poster URL to the returned dictionary
+            }
+        except Exception as e:
+            print(f"Error fetching movie details for {imdb_id}: {e}")
+            return {}
+
+
 
 # Example usage
 if __name__ == "__main__":
