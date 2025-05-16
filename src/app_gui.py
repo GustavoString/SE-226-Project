@@ -548,9 +548,3 @@ class IMDbApp:
             messagebox.showerror("Movie Details Error", f"Failed to load movie details: {str(e)}")
             print(f"Error loading movie details: {e}")
 
-
-# --- Main Execution ---
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = IMDbApp(root)
-    root.mainloop()

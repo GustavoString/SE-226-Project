@@ -323,26 +323,3 @@ class MovieManager:
         except Exception as e:
             print(f"Error fetching movie details for {imdb_id}: {e}")
             return {}
-
-
-
-if __name__ == "__main__":
-    manager = MovieManager()
-
-    if os.path.exists("movie_data.json"):
-        manager.load_from_file()
-    else:
-        movies = manager.fetch_top_movies(limit=10)
-        print(f"Fetched {len(movies)} top movies")
-
-        manager.fetch_all_details()
-
-        manager.save_to_file()
-
-    for rank in sorted(manager.movies.keys()):
-        movie = manager.movies[rank]
-        print(f"{rank}. {movie['title']} ({movie.get('year', 'N/A')}) - Rating: {movie.get('rating', 'N/A')}")
-        print(f"   Director: {movie.get('director', 'N/A')}")
-        print(f"   Genre: {movie.get('genre', 'N/A')}")
-        print(f"   Description: {movie.get('description', 'N/A')[:100]}...")
-        print(f"   Storyline: {movie.get('storyline', 'N/A')[:100]}...")

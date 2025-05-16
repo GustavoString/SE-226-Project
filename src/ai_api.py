@@ -81,21 +81,3 @@ def get_image(location, style, dialogue):
     except Exception as e:
         print("Image generation failed:", e)
         return None
-
-# for testing only
-if __name__ == "__main__":
-    storyline = input("Enter the storyline: ")
-    num_characters = int(input("Enter the number of characters: "))
-    max_words = int(input("Enter the maximum number of words: "))
-
-    dialogue = get_dialogue(storyline, num_characters, max_words)
-    print("\n--- Generated Dialogue ---\n")
-    print(dialogue)
-
-    generate_image = input("\nGenerate scene image? (yes/no): ").strip().lower()
-    if generate_image == "yes":
-        location = input("Enter the location: ")
-        style = input("Enter the style (Marvel, Futuristic, Cartoon, Realistic): ")
-        image_url = get_image(location, style, dialogue)
-        if image_url:
-            print("\nImage URL:", image_url)
