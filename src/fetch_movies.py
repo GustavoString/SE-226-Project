@@ -26,11 +26,16 @@ class MovieManager:
         Returns:
             dict: Dictionary of movies indexed by rank
         """
+
+        # If movies are already fetched and no forced refresh, return subset
         if self.movies and not force_refresh:
             return {k: v for k, v in self.movies.items() if k <= limit}
 
         try:
+
+            # Send HTTP GET request to IMDb top movies page
             response = requests.get(self.base_url, headers=self.headers)
+            # Raise an error for bad HTTP responses
             response.raise_for_status()
 
             soup = BeautifulSoup(response.text, 'html.parser')
@@ -43,9 +48,11 @@ class MovieManager:
             if not movie_containers:
                 movie_containers = soup.select(".ipc-title-link-wrapper")
 
+            # Raise exception if no movie elements found on the page
             if not movie_containers:
                 raise Exception("Failed to find movie elements on the page")
 
+            # Clear existing movies if forced refresh requested
             if force_refresh:
                 self.movies = {}
 
@@ -91,6 +98,7 @@ class MovieManager:
         """
         for attempt in range(max_retries):
             try:
+                #Search movie on IMDb using query parameterized URL
                 search_url = f"https://www.imdb.com/find/?q={movie_title.replace(' ', '+')}"
                 search_response = requests.get(search_url, headers=self.headers)
                 search_response.raise_for_status()
@@ -106,6 +114,7 @@ class MovieManager:
 
                 movie_id = movie_id_match.group(1)
 
+                #Fetch movie details page using movie ID and scrape key data points
                 movie_url = f"https://www.imdb.com/title/{movie_id}/"
                 movie_response = requests.get(movie_url, headers=self.headers)
                 movie_response.raise_for_status()
@@ -157,6 +166,7 @@ class MovieManager:
                 if poster_element and 'src' in poster_element.attrs:
                     movie_details["poster_url"] = poster_element['src']
 
+                #Fallback to plot description if storyline extraction fails
                 try:
                     movie_details["storyline"] = self._get_movie_storyline(movie_id)
                 except Exception as e:
@@ -166,6 +176,7 @@ class MovieManager:
                 return movie_details
 
             except Exception as e:
+                # Print retry info and raise exception on last attempt
                 print(f"Attempt {attempt + 1}/{max_retries} failed: {e}")
                 if attempt < max_retries - 1:
                     print(f"Retrying in {retry_delay} seconds...")

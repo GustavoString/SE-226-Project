@@ -279,10 +279,14 @@ class IMDbApp:
     def populate_movie_list(self):
         """Fetches and displays the IMDb top 10 movies with posters."""
         for widget in self.movie_items_frame.winfo_children():
+
+            # Remove the poster image if available
             widget.destroy()
 
         loading_label = ttk.Label(self.movie_items_frame, text="Loading IMDb top 10...", style="TLabel")
         loading_label.pack(pady=10, padx=5, fill=tk.X)
+
+        # Force canvas to update and display the loading label
         self.movies_canvas.update()
 
         try:
@@ -291,6 +295,8 @@ class IMDbApp:
             self.movie_manager.fetch_all_details()
 
             loading_label.destroy()
+
+            # Initialize or reset the top_movies list
             self.top_movies = []
 
             for rank, movie in sorted(movies.items()):
@@ -301,6 +307,8 @@ class IMDbApp:
                 movie_frame.pack(fill=tk.X, pady=2)
 
                 poster_url = self.movie_manager.movies[rank].get('poster_url')
+
+                # Placeholder label for movie poster image
                 poster_label = ttk.Label(movie_frame, background=DARK_LISTBOX_BG)
 
                 if poster_url:
@@ -315,6 +323,7 @@ class IMDbApp:
                 else:
                     poster_label.config(text="No image")
 
+                # Position the poster label in the grid layout
                 poster_label.grid(row=0, column=0, padx=5, pady=2)
 
                 title_label = ttk.Label(
