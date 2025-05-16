@@ -34,7 +34,6 @@ class MovieManager:
             response.raise_for_status()
 
             soup = BeautifulSoup(response.text, 'html.parser')
-
             movie_containers = soup.select(".ipc-metadata-list-summary-item")
 
             if not movie_containers:
