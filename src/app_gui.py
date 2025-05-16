@@ -100,42 +100,43 @@ class IMDbApp:
         """Creates the widgets for the left frame (movie list with posters)."""
         ttk.Label(self.left_frame, text="Top IMDb Movies", style="Header.TLabel").pack(pady=(0, 10))
 
-        # Create a frame for the canvas and scrollbar
         list_frame = ttk.Frame(self.left_frame, style="Dark.TFrame")
         list_frame.pack(fill=tk.BOTH, expand=True)
 
-        # Create scrollbar
-        scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, style='Vertical.TScrollbar')
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-        # Create canvas for movie items
         self.movies_canvas = tk.Canvas(
             list_frame,
             bg=DARK_BG,
             highlightthickness=0,
-            yscrollcommand=scrollbar.set
+            bd=0
         )
         self.movies_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        # Configure scrollbar to scroll canvas
-        scrollbar.config(command=self.movies_canvas.yview)
+        scrollbar = ttk.Scrollbar(
+            list_frame, orient=tk.VERTICAL,
+            command=self.movies_canvas.yview,
+            style='Vertical.TScrollbar'
+        )
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        # Create a frame inside the canvas to hold movie items
+        self.movies_canvas.configure(yscrollcommand=scrollbar.set)
+
         self.movie_items_frame = ttk.Frame(self.movies_canvas, style="Dark.TFrame")
-        self.movies_canvas.create_window((0, 0), window=self.movie_items_frame, anchor=tk.NW)
 
-        # Configure canvas to resize with window
-        def on_configure(event):
+        self.movie_items_frame_id = self.movies_canvas.create_window(
+            (0, 0), window=self.movie_items_frame, anchor="nw"
+        )
+
+        def on_frame_configure(event):
             self.movies_canvas.configure(scrollregion=self.movies_canvas.bbox("all"))
-            # Adjust the width of the inner frame to match the canvas
-            self.movies_canvas.itemconfig(self.movie_items_frame_id, width=self.movies_canvas.winfo_width())
 
-        self.movie_items_frame_id = self.movies_canvas.create_window((0, 0), window=self.movie_items_frame,
-                                                                     anchor=tk.NW)
-        self.movies_canvas.bind("<Configure>", on_configure)
+        self.movie_items_frame.bind("<Configure>", on_frame_configure)
 
-        # Dictionary to store poster images (prevent garbage collection)
-        self.poster_images = {}
+        def on_canvas_configure(event):
+            canvas_width = event.width
+            self.movies_canvas.itemconfig(self.movie_items_frame_id, width=canvas_width)
+
+        self.movies_canvas.bind("<Configure>", on_canvas_configure)
+
 
     def create_right_frame(self):
         """Creates the widgets for the right frame (details and AI)."""
