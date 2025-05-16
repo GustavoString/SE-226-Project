@@ -8,7 +8,7 @@ import time
 class MovieManager:
     def __init__(self):
         """Initialize the MovieManager with empty movie collection."""
-        self.movies = {}  # Dictionary to store movies by rank
+        self.movies = {}
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
             "Accept-Language": "en-US,en;q=0.9",
@@ -35,10 +35,8 @@ class MovieManager:
 
             soup = BeautifulSoup(response.text, 'html.parser')
 
-            # Try multiple selectors to find movie containers
             movie_containers = soup.select(".ipc-metadata-list-summary-item")
 
-            # Try alternative selectors if needed
             if not movie_containers:
                 movie_containers = soup.select(".ipc-metadata-list-item")
             if not movie_containers:
@@ -49,15 +47,11 @@ class MovieManager:
             if not movie_containers:
                 raise Exception("Failed to find movie elements on the page")
 
-            # Clear existing entries if refreshing
             if force_refresh:
                 self.movies = {}
 
-            # Process the movies up to limit
             for i, movie in enumerate(movie_containers[:limit]):
                 rank = i + 1
-
-                # Try different ways to find the title
                 title_element = movie.select_one(".ipc-title__text")
                 if not title_element:
                     title_element = movie.select_one(".ipc-metadata-list-item__label")
@@ -66,11 +60,9 @@ class MovieManager:
 
                 if title_element:
                     title = title_element.text.strip()
-                    # Remove rank number if present
                     if '. ' in title and title[0].isdigit():
                         title = title.split('. ', 1)[1]
 
-                    # Store basic info, details will be fetched separately
                     self.movies[rank] = {
                         "rank": rank,
                         "title": title,
@@ -100,31 +92,26 @@ class MovieManager:
         """
         for attempt in range(max_retries):
             try:
-                # Search for the movie on IMDb
                 search_url = f"https://www.imdb.com/find/?q={movie_title.replace(' ', '+')}"
                 search_response = requests.get(search_url, headers=self.headers)
                 search_response.raise_for_status()
                 search_soup = BeautifulSoup(search_response.text, 'html.parser')
 
-                # Find the first movie result
                 movie_link = search_soup.select_one("a[href*='/title/tt']")
                 if not movie_link:
                     raise Exception(f"Could not find movie: {movie_title}")
 
-                # Extract the movie ID
                 movie_id_match = re.search(r'/title/(tt\d+)', movie_link['href'])
                 if not movie_id_match:
                     raise Exception(f"Could not extract movie ID for: {movie_title}")
 
                 movie_id = movie_id_match.group(1)
 
-                # Get the movie page
                 movie_url = f"https://www.imdb.com/title/{movie_id}/"
                 movie_response = requests.get(movie_url, headers=self.headers)
                 movie_response.raise_for_status()
                 movie_soup = BeautifulSoup(movie_response.text, 'html.parser')
 
-                # Initialize movie details
                 movie_details = {
                     "title": movie_title,
                     "imdb_id": movie_id,
@@ -139,14 +126,12 @@ class MovieManager:
                     "details_fetched": True
                 }
 
-                # Extract year
                 year_element = movie_soup.select_one("[data-testid='title-details-releasedate']")
                 if year_element:
                     year_match = re.search(r'\d{4}', year_element.text)
                     if year_match:
                         movie_details["year"] = year_match.group(0)
 
-                # Extract director
                 director_element = movie_soup.select_one(
                     "[data-testid='title-pc-principal-credit']:has(a[href*='director'])")
                 if director_element:
@@ -154,30 +139,25 @@ class MovieManager:
                     if director_name:
                         movie_details["director"] = director_name.text.strip()
 
-                # Extract rating
                 rating_element = movie_soup.select_one("[data-testid='hero-rating-bar__aggregate-rating__score']")
                 if rating_element:
                     rating_text = rating_element.text.strip()
                     movie_details["rating"] = rating_text
 
-                # Extract genre
                 genre_element = movie_soup.select_one("[data-testid='genres']")
                 if genre_element:
                     genres = genre_element.select("a")
                     if genres:
                         movie_details["genre"] = ", ".join([g.text.strip() for g in genres])
 
-                # Extract description (plot summary from main page)
                 plot_element = movie_soup.select_one("[data-testid='plot']")
                 if plot_element:
                     movie_details["description"] = plot_element.text.strip()
 
-                # Extract poster URL
                 poster_element = movie_soup.select_one("[data-testid='hero-media__poster'] img")
                 if poster_element and 'src' in poster_element.attrs:
                     movie_details["poster_url"] = poster_element['src']
 
-                # Get full storyline from plot summary page
                 try:
                     movie_details["storyline"] = self._get_movie_storyline(movie_id)
                 except Exception as e:
@@ -210,7 +190,6 @@ class MovieManager:
         plot_response.raise_for_status()
         plot_soup = BeautifulSoup(plot_response.text, 'html.parser')
 
-        # Try to find storyline elements
         storyline_elements = plot_soup.select(".ipc-html-content-inner-div")
 
         if len(storyline_elements) >= 2:
@@ -229,7 +208,6 @@ class MovieManager:
             dict: Updated movie details dictionary
         """
         if rank not in self.movies:
-            # If rank not in dictionary, try to fetch top movies first
             self.fetch_top_movies(limit=rank)
 
         if rank not in self.movies:
@@ -237,13 +215,11 @@ class MovieManager:
 
         movie = self.movies[rank]
 
-        # Skip if details already fetched
         if movie.get("details_fetched", False):
             return movie
 
-        # Get details and update the dictionary
         details = self.get_movie_details(movie["title"])
-        details["rank"] = rank  # Ensure rank is preserved
+        details["rank"] = rank
         self.movies[rank] = details
 
         return details
@@ -258,7 +234,6 @@ class MovieManager:
         Returns:
             dict: Updated dictionary of movies
         """
-        # Get basic info for all movies if not already fetched
         if not self.movies:
             self.fetch_top_movies(limit=max_rank or 10)
 
@@ -271,7 +246,6 @@ class MovieManager:
                 try:
                     print(f"Fetching details for rank {rank}: {self.movies[rank]['title']}")
                     self.fetch_movie_details_by_rank(rank)
-                    # Add a small delay to avoid overwhelming the server
                     time.sleep(1)
                 except Exception as e:
                     print(f"Error fetching details for rank {rank}: {e}")
@@ -315,7 +289,6 @@ class MovieManager:
             with open(filename, 'r', encoding='utf-8') as f:
                 self.movies = json.load(f)
 
-            # Convert string keys to integers
             self.movies = {int(k): v for k, v in self.movies.items()}
             print(f"Successfully loaded {len(self.movies)} movies from {filename}")
             return self.movies
@@ -331,15 +304,11 @@ class MovieManager:
             response.raise_for_status()
             soup = BeautifulSoup(response.text, 'html.parser')
 
-            # Extract existing details...
-
-            # Extract poster URL
             poster_elem = soup.select_one('div[data-testid="hero-media__poster"] img')
             poster_url = poster_elem['src'] if poster_elem and 'src' in poster_elem.attrs else None
 
             return {
-                # Existing details...
-                'poster_url': poster_url  # Add the poster URL to the returned dictionary
+                'poster_url': poster_url
             }
         except Exception as e:
             print(f"Error fetching movie details for {imdb_id}: {e}")
@@ -347,25 +316,19 @@ class MovieManager:
 
 
 
-# Example usage
 if __name__ == "__main__":
     manager = MovieManager()
 
-    # Load existing data or fetch new data
     if os.path.exists("movie_data.json"):
         manager.load_from_file()
     else:
-        # Fetch top 10 movies
         movies = manager.fetch_top_movies(limit=10)
         print(f"Fetched {len(movies)} top movies")
 
-        # Fetch details for all movies
         manager.fetch_all_details()
 
-        # Save to file
         manager.save_to_file()
 
-    # Display the top movies with details
     for rank in sorted(manager.movies.keys()):
         movie = manager.movies[rank]
         print(f"{rank}. {movie['title']} ({movie.get('year', 'N/A')}) - Rating: {movie.get('rating', 'N/A')}")
