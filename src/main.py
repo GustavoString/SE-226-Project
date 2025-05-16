@@ -6,13 +6,10 @@ from app_gui import IMDbApp
 
 def main():
     try:
-        # Initialize and load movie data first to avoid fetching delays
         movie_manager = MovieManager()
-
-        # Try to load existing data from file or fetch from IMDb
         try:
             movie_manager.load_from_file()
-            if not movie_manager.movies:  # If file was empty or didn't exist
+            if not movie_manager.movies:
                 movie_manager.fetch_top_movies(limit=10)
                 movie_manager.fetch_all_details()
                 movie_manager.save_to_file()
@@ -25,7 +22,6 @@ def main():
             movie_manager.fetch_all_details()
             movie_manager.save_to_file()
 
-        # Start the GUI with preloaded data
         root = tk.Tk()
         app = IMDbApp(root)
         app.movie_manager = movie_manager

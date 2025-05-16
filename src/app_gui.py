@@ -2,7 +2,7 @@ import tkinter as tk
 import threading
 from tkinter import ttk
 from tkinter import font as tkFont
-from tkinter import scrolledtext, messagebox # Use scrolledtext for easier text areas
+from tkinter import scrolledtext, messagebox
 import webbrowser
 from fetch_movies import MovieManager
 from ai_api import get_dialogue, get_image
@@ -11,17 +11,15 @@ import io
 import requests
 
 
-# --- Constants ---
 DARK_BG = "#2e2e2e"
 DARK_FG = "#cccccc"
 DARK_LISTBOX_BG = "#3c3c3c"
 DARK_TEXT_BG = "#3c3c3c"
 DARK_BUTTON_BG = "#555555"
 DARK_BUTTON_FG = "#ffffff"
-ACCENT_COLOR = "#4a90e2" # A slightly brighter color for highlights/buttons
+ACCENT_COLOR = "#4a90e2"
 
 
-# --- Main Application Class ---
 class IMDbApp:
 
     def __init__(self, root):
@@ -33,59 +31,49 @@ class IMDbApp:
 
         self.movie_manager = MovieManager()
 
-        # Initialize movie selection tracking
         self.selected_rank = None
         self.selected_title = None
 
-        # Initialize other necessary objects
         self.last_generated_dialogue = {}
         self.top_movies = []
-        self.poster_images = {}  # Dictionary to store poster images
+        self.poster_images = {}
 
-        # --- Font Configuration ---
         self.default_font = tkFont.nametofont("TkDefaultFont")
         self.default_font.configure(size=10)
         self.header_font = tkFont.Font(family="Segoe UI", size=12, weight="bold")
         self.title_font = tkFont.Font(family="Segoe UI", size=11, weight="bold")
 
-        # Set up the UI components
         self.setup_styles()
         self.create_ui_layout()
 
     def setup_styles(self):
         """Configures ttk styles for a dark theme."""
         style = ttk.Style(self.root)
-        style.theme_use('clam') # Use a theme that allows more customization
+        style.theme_use('clam')
 
-        # General widget styles
         style.configure('.', background=DARK_BG, foreground=DARK_FG, font=self.default_font)
         style.configure('TFrame', background=DARK_BG)
-        style.configure('Dark.TFrame', background=DARK_BG) # Specific style for our frames
+        style.configure('Dark.TFrame', background=DARK_BG)
         style.configure('TLabel', background=DARK_BG, foreground=DARK_FG, padding=(5, 2))
         style.configure('Header.TLabel', font=self.header_font, foreground=ACCENT_COLOR)
         style.configure('Title.TLabel', font=self.title_font)
 
-        # Button styles
         style.configure('TButton', background=DARK_BUTTON_BG, foreground=DARK_BUTTON_FG, padding=5)
         style.map('TButton',
                   background=[('active', ACCENT_COLOR), ('pressed', ACCENT_COLOR)],
                   foreground=[('active', DARK_BUTTON_FG)])
 
-        # Entry and Spinbox styles
         style.configure('TEntry', fieldbackground=DARK_LISTBOX_BG, foreground=DARK_FG, insertcolor=DARK_FG)
         style.configure('TSpinbox', fieldbackground=DARK_LISTBOX_BG, foreground=DARK_FG, arrowcolor=DARK_FG, insertcolor=DARK_FG)
-        style.map('TSpinbox', background=[('active', DARK_LISTBOX_BG)]) # Keep bg consistent
+        style.map('TSpinbox', background=[('active', DARK_LISTBOX_BG)])
 
-        # Combobox style
         style.map('TCombobox', fieldbackground=[('readonly', DARK_LISTBOX_BG)],
-                                selectbackground=[('readonly', DARK_LISTBOX_BG)], # Prevent selection color change
+                                selectbackground=[('readonly', DARK_LISTBOX_BG)],
                                 selectforeground=[('readonly', DARK_FG)],
                                 foreground=[('readonly', DARK_FG)])
-        # Remove the arrow highlight on hover for readonly combobox
         style.map('TCombobox.field', highlightcolor=[('readonly', 'hover', DARK_LISTBOX_BG)])
 
 
-        # Notebook (Tabs) styles
         style.configure('TNotebook', background=DARK_BG, borderwidth=0)
         style.configure('TNotebook.Tab', background=DARK_BG, foreground=DARK_FG, padding=[10, 5], font=self.default_font)
         style.map('TNotebook.Tab',
@@ -140,12 +128,10 @@ class IMDbApp:
 
     def create_right_frame(self):
         """Creates the widgets for the right frame (details and AI)."""
-        # --- AI Controls Frame ---
         ai_controls_frame = ttk.Frame(self.right_frame, style="Dark.TFrame")
         ai_controls_frame.pack(fill=tk.X, pady=(0, 15))
-        ai_controls_frame.columnconfigure((1, 3, 5), weight=1) # Allow input fields to expand slightly
+        ai_controls_frame.columnconfigure((1, 3, 5), weight=1)
 
-        # Dialogue Generation Controls
         ttk.Label(ai_controls_frame, text="Dialogue Gen:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
         ttk.Label(ai_controls_frame, text="Characters:").grid(row=0, column=1, padx=(10, 2), pady=5, sticky="e")
         self.char_count_var = tk.IntVar(value=3)
@@ -165,7 +151,7 @@ class IMDbApp:
             ai_controls_frame,
             from_=750,
             to=1500,
-            increment=50, # Step value
+            increment=50,
             textvariable=self.max_words_var,
             width=7,
             wrap=True
@@ -176,12 +162,10 @@ class IMDbApp:
             ai_controls_frame,
             text="Generate Dialogue",
             command=self.generate_dialogue,
-            state=tk.DISABLED # Disabled until a movie is selected
+            state=tk.DISABLED
         )
         self.generate_dialogue_button.grid(row=0, column=5, padx=5, pady=5, sticky="ew")
 
-
-        # Image Generation Controls
         ttk.Label(ai_controls_frame, text="Image Gen:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
         ttk.Label(ai_controls_frame, text="Location:").grid(row=1, column=1, padx=(10, 2), pady=5, sticky="e")
         self.location_var = tk.StringVar()
@@ -194,45 +178,41 @@ class IMDbApp:
             ai_controls_frame,
             textvariable=self.style_var,
             values=["Marvel", "Futuristic", "Cartoon", "Realistic"],
-            state="readonly", # Prevent user typing custom values
+            state="readonly",
             width=12
         )
         self.style_combobox.grid(row=1, column=4, padx=(0, 10), pady=5, sticky="ew")
-        self.style_combobox.set("Futuristic") # Default value
+        self.style_combobox.set("Futuristic")
 
         self.generate_image_button = ttk.Button(
             ai_controls_frame,
             text="Generate Image",
             command=self.generate_image,
-            state=tk.DISABLED # Disabled until a movie is selected
+            state=tk.DISABLED
         )
         self.generate_image_button.grid(row=1, column=5, padx=5, pady=5, sticky="ew")
 
-        # --- Details Display Area (using Notebook/Tabs) ---
         self.notebook = ttk.Notebook(self.right_frame, style='TNotebook')
         self.notebook.pack(fill=tk.BOTH, expand=True)
 
-        # Tab 1: Movie Details
         details_tab = ttk.Frame(self.notebook, style="Dark.TFrame", padding=10)
-        self.notebook.add(details_tab, text=' Movie Details ') # Added spaces for padding
+        self.notebook.add(details_tab, text=' Movie Details ')
 
-        details_tab.columnconfigure(1, weight=1) # Allow text fields to expand
+        details_tab.columnconfigure(1, weight=1)
 
         ttk.Label(details_tab, text="Title:", style="Title.TLabel").grid(row=0, column=0, sticky="nw", padx=5, pady=2)
-        self.title_label = ttk.Label(details_tab, text="", wraplength=600) # Wrap long titles
+        self.title_label = ttk.Label(details_tab, text="", wraplength=600)
         self.title_label.grid(row=0, column=1, sticky="nw", padx=5, pady=2)
 
         ttk.Label(details_tab, text="IMDb URL:", style="Title.TLabel").grid(row=1, column=0, sticky="nw", padx=5, pady=2)
-        self.url_label = ttk.Label(details_tab, text="", foreground=ACCENT_COLOR, cursor="hand2") # Make it look clickable
+        self.url_label = ttk.Label(details_tab, text="", foreground=ACCENT_COLOR, cursor="hand2")
         self.url_label.grid(row=1, column=1, sticky="nw", padx=5, pady=2)
-        # Add binding to open URL later if needed
-        # self.url_label.bind("<Button-1>", lambda e: self.open_url(self.url_label.cget("text")))
 
         ttk.Label(details_tab, text="Description:", style="Title.TLabel").grid(row=2, column=0, sticky="nw", padx=5, pady=(10, 2))
         self.description_text = scrolledtext.ScrolledText(
             details_tab, wrap=tk.WORD, height=5, bg=DARK_TEXT_BG, fg=DARK_FG,
             borderwidth=1, relief=tk.SUNKEN, padx=5, pady=5,
-            font=self.default_font, state=tk.DISABLED # Read-only initially
+            font=self.default_font, state=tk.DISABLED
         )
         self.description_text.grid(row=3, column=0, columnspan=2, sticky="ew", padx=5, pady=2)
 
@@ -240,24 +220,38 @@ class IMDbApp:
         self.storyline_text = scrolledtext.ScrolledText(
             details_tab, wrap=tk.WORD, height=8, bg=DARK_TEXT_BG, fg=DARK_FG,
             borderwidth=1, relief=tk.SUNKEN, padx=5, pady=5,
-            font=self.default_font, state=tk.DISABLED # Read-only initially
+            font=self.default_font, state=tk.DISABLED
         )
         self.storyline_text.grid(row=5, column=0, columnspan=2, sticky="nsew", padx=5, pady=2)
-        details_tab.rowconfigure(5, weight=1) # Allow storyline to expand vertically
+        details_tab.rowconfigure(5, weight=1)
 
 
-        # Tab 2: Generated Dialogue
         dialogue_tab = ttk.Frame(self.notebook, style="Dark.TFrame", padding=10)
+        save_frame = ttk.Frame(dialogue_tab, style="Dark.TFrame")
+        save_frame.pack(fill=tk.X, pady=(0, 10))
+
+        ttk.Label(save_frame, text="Filename:").pack(side=tk.LEFT, padx=(0, 5))
+
+        self.dialogue_filename_var = tk.StringVar()
+        self.dialogue_filename_entry = ttk.Entry(save_frame, textvariable=self.dialogue_filename_var, width=30)
+        self.dialogue_filename_entry.pack(side=tk.LEFT, padx=(0, 10))
+
+        self.save_dialogue_button = ttk.Button(
+            save_frame,
+            text="Save Dialogue to File",
+            command=self.save_dialogue_to_file
+        )
+        self.save_dialogue_button.pack(side=tk.LEFT)
+
         self.notebook.add(dialogue_tab, text=' Generated Dialogue ')
 
         self.dialogue_output_text = scrolledtext.ScrolledText(
             dialogue_tab, wrap=tk.WORD, bg=DARK_TEXT_BG, fg=DARK_FG,
             borderwidth=1, relief=tk.SUNKEN, padx=5, pady=5,
-            font=self.default_font, state=tk.DISABLED # Read-only
+            font=self.default_font, state=tk.DISABLED
         )
         self.dialogue_output_text.pack(fill=tk.BOTH, expand=True)
 
-        # Tab 3: Generated Image
         image_tab = ttk.Frame(self.notebook, style="Dark.TFrame", padding=10)
         self.notebook.add(image_tab, text=' Generated Image ')
 
@@ -265,70 +259,52 @@ class IMDbApp:
             image_tab,
             text="Image will appear here",
             anchor=tk.CENTER,
-            # relief=tk.SUNKEN, # Optional: add border
-            # borderwidth=1,
-            background=DARK_LISTBOX_BG # Slightly different background for emphasis
+            background=DARK_LISTBOX_BG
         )
-        # Use pack or grid to center the label/image area
         image_tab.rowconfigure(0, weight=1)
         image_tab.columnconfigure(0, weight=1)
         self.image_label.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
-        # You will need PIL/Pillow to actually display images:
-        # from PIL import Image, ImageTk
-        # Then load and assign image like:
-        # tk_image = ImageTk.PhotoImage(pil_image)
-        # self.image_label.config(image=tk_image, text="") # Remove text when image loads
-        # self.image_label.image = tk_image # Keep reference
 
     def create_ui_layout(self):
         """Create the main UI layout with frames."""
-        # Create main frames
         self.left_frame = ttk.Frame(self.root, style="Dark.TFrame", padding=10)
         self.left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=5, pady=5)
 
         self.right_frame = ttk.Frame(self.root, style="Dark.TFrame", padding=10)
         self.right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=5, pady=5)
 
-        # Create the content for each frame
         self.create_left_frame()
         self.create_right_frame()
 
     def populate_movie_list(self):
         """Fetches and displays the IMDb top 10 movies with posters."""
-        # Clear existing movie items
         for widget in self.movie_items_frame.winfo_children():
             widget.destroy()
 
-        # Show loading message
         loading_label = ttk.Label(self.movie_items_frame, text="Loading IMDb top 10...", style="TLabel")
         loading_label.pack(pady=10, padx=5, fill=tk.X)
         self.movies_canvas.update()
 
         try:
-            # Fetch movie data using MovieManager
-            movies = self.movie_manager.fetch_top_movies(limit=10)
-            self.movie_manager.fetch_all_details()  # This will fetch details including poster URLs
 
-            # Clear loading message
+            movies = self.movie_manager.fetch_top_movies(limit=10)
+            self.movie_manager.fetch_all_details()
+
             loading_label.destroy()
             self.top_movies = []
 
-            # For each movie, create a frame with poster and title
             for rank, movie in sorted(movies.items()):
                 title = movie['title']
                 self.top_movies.append((rank, title))
 
-                # Create frame for movie item
                 movie_frame = ttk.Frame(self.movie_items_frame, style="Dark.TFrame", padding=5)
                 movie_frame.pack(fill=tk.X, pady=2)
 
-                # Add poster image if available
                 poster_url = self.movie_manager.movies[rank].get('poster_url')
                 poster_label = ttk.Label(movie_frame, background=DARK_LISTBOX_BG)
 
                 if poster_url:
                     try:
-                        # Download and display poster
                         threading.Thread(
                             target=self.load_poster_image,
                             args=(poster_url, poster_label, rank),
@@ -341,7 +317,6 @@ class IMDbApp:
 
                 poster_label.grid(row=0, column=0, padx=5, pady=2)
 
-                # Add title label
                 title_label = ttk.Label(
                     movie_frame,
                     text=title,
@@ -353,16 +328,14 @@ class IMDbApp:
                 title_label.grid(row=0, column=1, sticky="nsew", padx=5, pady=2)
                 movie_frame.columnconfigure(1, weight=1)
 
-                # Bind click event to select movie
                 def make_select_handler(idx):
                     return lambda e: self.select_movie(idx)
 
-                movie_frame.bind("<Button-1>", make_select_handler(rank - 1))  # Adjust for 0-based index
+                movie_frame.bind("<Button-1>", make_select_handler(rank - 1))
                 title_label.bind("<Button-1>", make_select_handler(rank - 1))
                 poster_label.bind("<Button-1>", make_select_handler(rank - 1))
 
         except Exception as e:
-            # Handle error if movie fetch fails
             for widget in self.movie_items_frame.winfo_children():
                 widget.destroy()
 
@@ -378,62 +351,6 @@ class IMDbApp:
         text_widget.insert('1.0', content)
         text_widget.config(state=tk.DISABLED)
 
-    def on_movie_select(self, event=None, index=None, rank=None, movie_title=None):
-        """Handle movie selection, either from listbox event or direct selection."""
-        if event is not None:  # Called from old listbox - this branch can be removed when you've fully switched
-            selected_indices = self.movie_listbox.curselection()
-            if not selected_indices:
-                self.clear_details()
-                self.generate_dialogue_button.config(state=tk.DISABLED)
-                self.generate_image_button.config(state=tk.DISABLED)
-                return
-
-            selected_index = selected_indices[0]
-            if selected_index >= len(self.top_movies):
-                messagebox.showerror("Selection Error", "Invalid movie selection")
-                return
-
-            rank, movie_title = self.top_movies[selected_index]
-        elif index is None or rank is None or movie_title is None:
-            return
-
-        # Show loading placeholders in GUI
-        self.set_text_widget_content(self.description_text, "Loading movie details...")
-        self.set_text_widget_content(self.storyline_text, "Loading storyline...")
-        self.generate_dialogue_button.config(state=tk.DISABLED)
-        self.generate_image_button.config(state=tk.DISABLED)
-        self.root.update()
-
-        # Fetch movie details
-        try:
-            # Use the rank to get the movie details
-            movie_data = self.movie_manager.fetch_movie_details_by_rank(rank)
-
-            # Update the details in the UI
-            self.title_label.config(text=f"{movie_data.get('title', 'Unknown')} ({movie_data.get('year', 'N/A')})")
-
-            # Set URL and make it clickable
-            url = movie_data.get('url', '')
-            self.url_label.config(text=url)
-            if url:
-                self.url_label.bind("<Button-1>", lambda e: webbrowser.open(url))
-
-            # Update description and storyline
-            self.set_text_widget_content(self.description_text,
-                                         movie_data.get('description', 'No description available.'))
-            self.set_text_widget_content(self.storyline_text, movie_data.get('storyline', 'No storyline available.'))
-
-            # Enable AI generation buttons
-            self.generate_dialogue_button.config(state=tk.NORMAL)
-            self.generate_image_button.config(state=tk.NORMAL)
-
-            # Switch to the details tab
-            self.notebook.select(0)  # Select the Movie Details tab
-
-        except Exception as e:
-            self.clear_details()
-            messagebox.showerror("Movie Details Error", f"Failed to load movie details: {str(e)}")
-            print(f"Error loading movie details: {e}")
 
     def clear_details(self):
         """Clears the details and AI output areas."""
@@ -443,7 +360,6 @@ class IMDbApp:
         self.set_text_widget_content(self.storyline_text, "")
         self.set_text_widget_content(self.dialogue_output_text, "")
         self.image_label.config(image="", text="Select a movie")
-        # self.image_label.image = None # Clear image reference if using PIL
 
     def generate_dialogue(self):
         """Generate a dialogue based on the selected movie."""
@@ -457,7 +373,7 @@ class IMDbApp:
         max_words = self.max_words_var.get()
 
         self.set_text_widget_content(self.dialogue_output_text, "Generating dialogue, please wait...")
-        self.notebook.select(1)  # Switch to dialogue tab
+        self.notebook.select(1)
 
         def worker():
             try:
@@ -470,6 +386,26 @@ class IMDbApp:
 
         threading.Thread(target=worker, daemon=True).start()
 
+    def save_dialogue_to_file(self):
+        """Save the current dialogue to a user-named text file."""
+        filename = self.dialogue_filename_var.get().strip()
+        if not filename:
+            messagebox.showwarning("Filename Missing", "Please enter a filename.")
+            return
+
+        dialogue_text = self.dialogue_output_text.get("1.0", tk.END).strip()
+        if not dialogue_text or dialogue_text.startswith("Generating dialogue"):
+            messagebox.showwarning("No Dialogue", "No dialogue available to save.")
+            return
+
+        try:
+            full_filename = f"{filename}.txt"
+            with open(full_filename, "w", encoding="utf-8") as f:
+                f.write(dialogue_text)
+            messagebox.showinfo("Success", f"Dialogue saved as '{full_filename}'.")
+        except Exception as e:
+            messagebox.showerror("Save Error", f"Failed to save dialogue: {e}")
+
     def generate_image(self):
         """Generate an image based on the selected movie."""
         if not hasattr(self, 'selected_rank') or not self.selected_rank:
@@ -480,7 +416,7 @@ class IMDbApp:
         style = self.style_var.get() or "Futuristic"
 
         self.image_label.config(image="", text="Generating image, please wait...")
-        self.notebook.select(2)  # Switch to image tab
+        self.notebook.select(2)
 
         def worker():
             if self.selected_title in self.last_generated_dialogue:
@@ -537,16 +473,12 @@ class IMDbApp:
             img_data = response.content
             img = Image.open(io.BytesIO(img_data))
 
-            # Resize poster to appropriate dimensions
             img = img.resize((80, 120), Image.LANCZOS)
 
-            # Convert to PhotoImage for Tkinter
             tk_img = ImageTk.PhotoImage(img)
 
-            # Store reference to prevent garbage collection
             self.poster_images[rank] = tk_img
 
-            # Update label with image
             def update_label():
                 label.config(image=tk_img)
 
@@ -563,9 +495,7 @@ class IMDbApp:
         if index < 0 or index >= len(self.top_movies):
             return
 
-        # Update selection state for movie frames
         for i, child in enumerate(self.movie_items_frame.winfo_children()):
-            # For ttk widgets, we need to use style instead of direct background
             for widget in child.winfo_children():
                 if i == index:
                     if isinstance(widget, ttk.Label):
@@ -574,47 +504,35 @@ class IMDbApp:
                     if isinstance(widget, ttk.Label):
                         widget.configure(background=DARK_LISTBOX_BG)
 
-        # Get rank and title
         rank, movie_title = self.top_movies[index]
-
-        # Store the currently selected movie for AI features
         self.selected_rank = rank
         self.selected_title = movie_title
 
-        # Show loading placeholders
         self.set_text_widget_content(self.description_text, "Loading movie details...")
         self.set_text_widget_content(self.storyline_text, "Loading storyline...")
         self.root.update()
 
         try:
-            # Fetch movie details
             movie_data = self.movie_manager.fetch_movie_details_by_rank(rank)
-
-            # Update the UI with movie details
             self.title_label.config(text=f"{movie_data.get('title', 'Unknown')} ({movie_data.get('year', 'N/A')})")
 
-            # Set URL and make it clickable
             url = movie_data.get('url', '')
             self.url_label.config(text=url)
             if url:
                 self.url_label.bind("<Button-1>", lambda e: webbrowser.open(url))
 
-            # Update description and storyline
             self.set_text_widget_content(self.description_text,
                                          movie_data.get('description', 'No description available.'))
             self.set_text_widget_content(self.storyline_text,
                                          movie_data.get('storyline', 'No storyline available.'))
 
-            # Enable AI generation buttons
             self.generate_dialogue_button.config(state=tk.NORMAL)
             self.generate_image_button.config(state=tk.NORMAL)
 
-            # Store the currently selected movie for AI features
             self.selected_rank = rank
             self.selected_title = movie_title
 
-            # Switch to the details tab
-            self.notebook.select(0)  # Select the Movie Details tab
+            self.notebook.select(0)
 
         except Exception as e:
             self.clear_details()
