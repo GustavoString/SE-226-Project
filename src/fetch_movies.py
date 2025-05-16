@@ -26,11 +26,16 @@ class MovieManager:
         Returns:
             dict: Dictionary of movies indexed by rank
         """
+
+        # If movies are already fetched and no forced refresh, return subset
         if self.movies and not force_refresh:
             return {k: v for k, v in self.movies.items() if k <= limit}
 
         try:
+
+            # Send HTTP GET request to IMDb top movies page
             response = requests.get(self.base_url, headers=self.headers)
+            # Raise an error for bad HTTP responses
             response.raise_for_status()
 
             soup = BeautifulSoup(response.text, 'html.parser')
@@ -43,9 +48,11 @@ class MovieManager:
             if not movie_containers:
                 movie_containers = soup.select(".ipc-title-link-wrapper")
 
+            # Raise exception if no movie elements found on the page
             if not movie_containers:
                 raise Exception("Failed to find movie elements on the page")
 
+            # Clear existing movies if forced refresh requested
             if force_refresh:
                 self.movies = {}
 
